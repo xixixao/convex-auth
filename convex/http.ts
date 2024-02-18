@@ -127,6 +127,7 @@ httpWithCors.route({
   handler: httpAction(
     convertErrorsToResponse(async (ctx, req) => {
       const sessionId = getCookies(req).get(SESSION_COOKIE_NAME);
+      await ctx.runMutation(internal.auth.signOut, { sessionId });
       const expired = new Date(0).toUTCString();
       return new Response(null, {
         status: 200,

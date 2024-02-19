@@ -3,7 +3,7 @@ import { MutationCtx, QueryCtx, internalMutation } from "./_generated/server";
 import { Id } from "./_generated/dataModel";
 import { Scrypt } from "lucia";
 
-const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+export const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
 
 export const signUp = internalMutation({
   args: {

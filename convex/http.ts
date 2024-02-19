@@ -1,6 +1,7 @@
 import { httpRouter } from "convex/server";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
+import { SESSION_DURATION_MS } from "./auth";
 import { convertErrorsToResponse, corsRoutes, getCookies } from "./helpers";
 
 const http = httpRouter();
@@ -67,7 +68,7 @@ httpWithCors.route({
         status: 200,
         headers: {
           "Content-Type": "application/text",
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=None; Secure; Partitioned`,
+          ...sessionCookieHeader(sessionId!, "refresh"),
         },
       });
     })
@@ -89,9 +90,7 @@ httpWithCors.route({
       });
       return new Response(null, {
         status: 200,
-        headers: {
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=None; Secure; Partitioned`,
-        },
+        headers: sessionCookieHeader(sessionId, "refresh"),
       });
     })
   ),
@@ -112,9 +111,7 @@ httpWithCors.route({
       });
       return new Response(null, {
         status: 200,
-        headers: {
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=${sessionId}; HttpOnly; SameSite=None; Secure; Partitioned`,
-        },
+        headers: sessionCookieHeader(sessionId, "refresh"),
       });
     })
   ),
@@ -128,18 +125,23 @@ httpWithCors.route({
     convertErrorsToResponse(401, async (ctx, req) => {
       const sessionId = getCookies(req).get(SESSION_COOKIE_NAME);
       await ctx.runMutation(internal.auth.signOut, { sessionId });
-      const expired = new Date(0).toUTCString();
       return new Response(null, {
         status: 200,
-        headers: {
-          // TODO: Fix for prod
-          "Set-Cookie": `${SESSION_COOKIE_NAME}=; HttpOnly; SameSite=None; Secure; Partitioned; Expires=${expired}`,
-          "Access-Control-Allow-Origin": "http://localhost:3000",
-          "Access-Control-Allow-Credentials": "true",
-        },
+        headers: sessionCookieHeader(sessionId!, "expired"),
       });
     })
   ),
 });
+
+function sessionCookieHeader(value: string, expire: "refresh" | "expired") {
+  const expires = (
+    expire === "refresh"
+      ? new Date(Date.now() + SESSION_DURATION_MS)
+      : new Date(0)
+  ).toUTCString();
+  return {
+    "Set-Cookie": `${SESSION_COOKIE_NAME}=${value}; HttpOnly; SameSite=None; Secure; Path=/; Partitioned; Expires=${expires}`,
+  };
+}
 
 export default http;

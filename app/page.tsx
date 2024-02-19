@@ -125,6 +125,7 @@ function AuthForm() {
           name="password"
           id="password"
           className="mb-4 "
+          autoComplete="current-password"
         />
         <Button type="submit">
           {flow === "signIn" ? "Sign in" : "Sign up"}

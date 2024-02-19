@@ -3,6 +3,7 @@ import { ActionCtx, httpAction } from "./_generated/server";
 import { ConvexError } from "convex/values";
 
 export function convertErrorsToResponse(
+  errorStatusCode: number,
   action: (ctx: ActionCtx, request: Request) => Promise<Response>
 ) {
   return async (ctx: ActionCtx, request: Request) => {
@@ -11,7 +12,7 @@ export function convertErrorsToResponse(
     } catch (error) {
       if (error instanceof ConvexError) {
         return new Response(null, {
-          status: 401,
+          status: errorStatusCode,
           statusText: (error as any).data,
         });
       } else {

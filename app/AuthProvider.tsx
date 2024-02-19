@@ -12,8 +12,15 @@ import {
 import { createContext } from "react";
 
 const ClientAuthContext = createContext<{
+  isLoading: boolean;
+  isAuthenticated: boolean;
   token: string | null;
-  refreshAuth: () => Promise<string | null>;
+  fetchAccessToken: ({
+    forceRefreshToken,
+  }: {
+    forceRefreshToken: boolean;
+  }) => Promise<string | null>;
+  refreshAuth: () => Promise<void>;
   signOut: () => Promise<void>;
 }>(undefined as any);
 
@@ -21,46 +28,61 @@ export function useAuthClient() {
   return useContext(ClientAuthContext);
 }
 
+let token: string | null = null;
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const fetchAccessToken = useCallback(
+    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+      if (forceRefreshToken) {
+        token = await fetchToken();
+        setIsLoading(false);
+        if (token !== null) {
+          setIsAuthenticated(true);
+        }
+      }
+      return token;
+    },
+    []
+  );
   const refreshAuth = useCallback(async () => {
-    const token = await fetchToken();
-    setToken(token);
-    return token;
-  }, []);
+    void fetchAccessToken({ forceRefreshToken: true });
+  }, [fetchAccessToken]);
   useEffect(() => {
     void refreshAuth();
   }, [refreshAuth]);
   const signOut = useCallback(async () => {
     await forceSignOut();
-    setToken(null);
+    token = null;
+    setIsAuthenticated(false);
   }, []);
+
   return (
-    <ClientAuthContext.Provider value={{ token, refreshAuth, signOut }}>
+    <ClientAuthContext.Provider
+      value={{
+        isLoading,
+        isAuthenticated,
+        token,
+        fetchAccessToken,
+        refreshAuth,
+        signOut,
+      }}
+    >
       {children}
     </ClientAuthContext.Provider>
   );
 }
 
 export function useAuth() {
-  const { token, refreshAuth } = useAuthClient();
-
-  const fetchAccessToken = useCallback(
-    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
-      if (forceRefreshToken) {
-        return await refreshAuth();
-      }
-      return token;
-    },
-    [token, refreshAuth]
-  );
+  const { isLoading, isAuthenticated, fetchAccessToken } = useAuthClient();
   return useMemo(
     () => ({
-      isLoading: false,
-      isAuthenticated: token !== null,
+      isLoading,
+      isAuthenticated,
       fetchAccessToken,
     }),
-    [fetchAccessToken, token]
+    [fetchAccessToken, isLoading, isAuthenticated]
   );
 }
 
@@ -68,7 +90,8 @@ async function fetchToken() {
   const response = await fetch(CONVEX_SERVER_URL + "/auth/token", {
     credentials: "include",
   });
-  return await response.text();
+  const token = await response.text();
+  return token.length > 0 ? token : null;
 }
 
 async function forceSignOut() {

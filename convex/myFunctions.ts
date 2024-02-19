@@ -16,6 +16,9 @@ export const listNumbers = query({
   // Query implementation.
   handler: async (ctx, args) => {
     const viewerId = await getViewerId(ctx);
+    if (viewerId === null) {
+      return { viewer: null, numbers: [] };
+    }
     const viewer = (await ctx.db.get(viewerId))!;
 
     //// Read the database as many times as you need here.
@@ -46,7 +49,7 @@ export const addNumber = mutation({
     //// Mutations can also read from the database like queries.
     //// See https://docs.convex.dev/database/writing-data.
 
-    const viewerId = await getViewerId(ctx);
+    const viewerId = await getViewerIdX(ctx);
     const id = await ctx.db.insert("numbers", {
       value: args.value,
       userId: viewerId,
@@ -86,10 +89,18 @@ export const myAction = action({
   },
 });
 
+async function getViewerIdX(ctx: QueryCtx) {
+  const viewerId = await getViewerId(ctx);
+  if (viewerId === null) {
+    throw new Error("Not authenticated");
+  }
+  return viewerId;
+}
+
 async function getViewerId(ctx: QueryCtx) {
   const auth = await ctx.auth.getUserIdentity();
   if (auth === null) {
-    throw new Error("Not authenticated");
+    return null;
   }
   return auth.subject as Id<"users">;
 }

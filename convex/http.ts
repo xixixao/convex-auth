@@ -1,9 +1,15 @@
+import { GitHub, generateState } from "arctic";
 import { httpRouter } from "convex/server";
+import * as cookie from "cookie";
 import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { SESSION_DURATION_MS } from "./auth";
 import { convertErrorsToResponse, corsRoutes, getCookies } from "./helpers";
-import * as cookie from "cookie";
+
+export const github = new GitHub(
+  process.env.GITHUB_CLIENT_ID!,
+  process.env.GITHUB_CLIENT_SECRET!
+);
 
 const http = httpRouter();
 
@@ -131,6 +137,77 @@ httpWithCors.route({
   ),
 });
 
+const GITHUB_OATH_STATE_COOKIE_NAME = "githubOAuthState";
+
+httpWithCors.route({
+  path: "/auth/github",
+  method: "GET",
+  credentials: true,
+  handler: httpAction(async () => {
+    const state = generateState();
+    const url = await github.createAuthorizationURL(state, {
+      scopes: ["user:email"],
+    });
+
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: url.toString(),
+        "Set-Cookie": cookie.serialize(GITHUB_OATH_STATE_COOKIE_NAME, state, {
+          httpOnly: true,
+          sameSite: "none",
+          secure: true,
+          path: "/",
+          partitioned: true,
+          maxAge: 60 * 10, // 10 minutes
+        }),
+      },
+    });
+  }),
+});
+
+http.route({
+  path: "/auth/github/callback",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
+    const storedState = getCookies(req)[GITHUB_OATH_STATE_COOKIE_NAME];
+
+    if (code === null || state === null || state !== storedState) {
+      console.error("Invalid code or state in GitHub auth callback");
+      return Response.redirect(siteAfterLoginUrl());
+    }
+
+    try {
+      const { accessToken } = await github.validateAuthorizationCode(code);
+      const githubUserResponse = await fetch("https://api.github.com/user", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent": "app",
+        },
+      });
+      const { email } = await githubUserResponse.json();
+      const sessionId = await ctx.runMutation(
+        internal.auth.githubSignUpOrSignIn,
+        { email }
+      );
+      return new Response(null, {
+        status: 302,
+        headers: {
+          Location: siteAfterLoginUrl(),
+          "Cache-Control": "must-revalidate",
+          ...sessionCookieHeader(sessionId, "refresh"),
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      return Response.redirect(siteAfterLoginUrl());
+    }
+  }),
+});
+
 function sessionCookieHeader(value: string, expire: "refresh" | "expired") {
   const expires = new Date(
     expire === "refresh" ? Date.now() + SESSION_DURATION_MS : 0
@@ -141,10 +218,13 @@ function sessionCookieHeader(value: string, expire: "refresh" | "expired") {
       sameSite: "none",
       secure: true,
       path: "/",
-      partitioned: true,
       expires,
     }),
   };
+}
+
+function siteAfterLoginUrl() {
+  return process.env.SITE_AFTER_LOGIN_URL ?? siteUrl() + "/authenticated";
 }
 
 function siteUrl() {

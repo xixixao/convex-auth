@@ -40,10 +40,27 @@ export const signIn = internalMutation({
     if (user === null) {
       throw new ConvexError("Email not found");
     }
+    if (user.passwordHash === undefined) {
+      throw new ConvexError("Wrong authentication method");
+    }
     if (!(await verifyPassword(password, user.passwordHash))) {
       throw new ConvexError("Incorrect password");
     }
     return await createSession(ctx, user._id);
+  },
+});
+
+export const githubSignUpOrSignIn = internalMutation({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, { email }) => {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", email))
+      .unique();
+    const userId = user?._id ?? (await ctx.db.insert("users", { email }));
+    return await createSession(ctx, userId);
   },
 });
 

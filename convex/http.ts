@@ -50,10 +50,7 @@ http.route({
 
 const SESSION_COOKIE_NAME = "__session";
 
-const httpWithCors = corsRoutes(
-  http,
-  process.env.SITE_URL ?? "http://localhost:3000"
-);
+const httpWithCors = corsRoutes(http, siteUrl);
 
 httpWithCors.route({
   path: "/auth/token",
@@ -148,6 +145,10 @@ function sessionCookieHeader(value: string, expire: "refresh" | "expired") {
       expires,
     }),
   };
+}
+
+function siteUrl() {
+  return process.env.SITE_URL ?? "http://localhost:3000";
 }
 
 export default http;

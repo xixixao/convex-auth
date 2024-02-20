@@ -30,7 +30,7 @@ export function getCookies(req: Request): Record<string, string | undefined> {
   return cookie.parse(req.headers.get("Cookie") ?? "");
 }
 
-export function corsRoutes(http: HttpRouter, origin: string) {
+export function corsRoutes(http: HttpRouter, origin: () => string) {
   return {
     route({
       path,
@@ -50,7 +50,7 @@ export function corsRoutes(http: HttpRouter, origin: string) {
           handler: httpAction(async (ctx, req) => {
             const response = await (handler as any)(ctx, req);
             const headers = new Headers(response.headers);
-            headers.set("Access-Control-Allow-Origin", origin);
+            headers.set("Access-Control-Allow-Origin", origin());
             headers.set("Access-Control-Allow-Methods", method);
             headers.set("Vary", "Origin");
             if (credentials) {
@@ -72,7 +72,7 @@ export function corsRoutes(http: HttpRouter, origin: string) {
         handler: httpAction(async (ctx, req) => {
           const response = await (handler as any)(ctx, req);
           const headers = new Headers(response.headers);
-          headers.set("Access-Control-Allow-Origin", origin);
+          headers.set("Access-Control-Allow-Origin", origin());
           if (credentials) {
             headers.set("Access-Control-Allow-Credentials", "true");
           }

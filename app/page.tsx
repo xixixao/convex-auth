@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuthClient } from "@/app/AuthProvider";
+import { GithubLogo } from "@/components/GithubLogo";
 import { Code } from "@/components/typography/code";
 import { Link } from "@/components/typography/link";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   useMutation,
   useQuery,
 } from "convex/react";
+import NextLink from "next/link";
 import { useState } from "react";
 
 export default function Home() {
@@ -94,9 +96,27 @@ function AuthForm() {
   const [flow, setFlow] = useState<"signIn" | "signUp">("signIn");
 
   return (
-    <div className="flex flex-col items-center px-20 gap-4">
+    <div className="px-28 mt-12 flex flex-col gap-4">
+      <h2 className="font-semibold text-2xl tracking-tight">
+        {flow === "signUp" ? "Sign Up" : "Sign In"}
+      </h2>
+      <Button variant="outline" type="button" asChild>
+        <NextLink href={CONVEX_SERVER_URL + "/auth/github"}>
+          <GithubLogo className="mr-2 h-4 w-4" /> GitHub
+        </NextLink>
+      </Button>
+      <div className="relative">
+        <div className="absolute inset-0 flex items-center">
+          <span className="w-full border-t" />
+        </div>
+        <div className="relative flex justify-center text-xs uppercase">
+          <span className="bg-background px-2 text-muted-foreground">
+            Or continue with
+          </span>
+        </div>
+      </div>
       <form
-        className="flex flex-col w-[18rem]"
+        className="flex flex-col"
         onSubmit={(event) => {
           event.preventDefault();
           setError(null);

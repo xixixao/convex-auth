@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { SESSION_DURATION_MS } from "./auth";
 import { convertErrorsToResponse, corsRoutes, getCookies } from "./helpers";
+import * as cookie from "cookie";
 
 const http = httpRouter();
 
@@ -60,7 +61,7 @@ httpWithCors.route({
   credentials: true,
   handler: httpAction(
     convertErrorsToResponse(200, async (ctx, req) => {
-      const sessionId = getCookies(req).get(SESSION_COOKIE_NAME);
+      const sessionId = getCookies(req)[SESSION_COOKIE_NAME];
       const token = await ctx.runAction(internal.node.generateToken, {
         sessionId,
       });
@@ -123,7 +124,7 @@ httpWithCors.route({
   credentials: true,
   handler: httpAction(
     convertErrorsToResponse(401, async (ctx, req) => {
-      const sessionId = getCookies(req).get(SESSION_COOKIE_NAME);
+      const sessionId = getCookies(req)[SESSION_COOKIE_NAME];
       await ctx.runMutation(internal.auth.signOut, { sessionId });
       return new Response(null, {
         status: 200,
@@ -134,13 +135,18 @@ httpWithCors.route({
 });
 
 function sessionCookieHeader(value: string, expire: "refresh" | "expired") {
-  const expires = (
-    expire === "refresh"
-      ? new Date(Date.now() + SESSION_DURATION_MS)
-      : new Date(0)
-  ).toUTCString();
+  const expires = new Date(
+    expire === "refresh" ? Date.now() + SESSION_DURATION_MS : 0
+  );
   return {
-    "Set-Cookie": `${SESSION_COOKIE_NAME}=${value}; HttpOnly; SameSite=None; Secure; Path=/; Partitioned; Expires=${expires}`,
+    "Set-Cookie": cookie.serialize(SESSION_COOKIE_NAME, value, {
+      httpOnly: true,
+      sameSite: "none",
+      secure: true,
+      path: "/",
+      partitioned: true,
+      expires,
+    }),
   };
 }
 

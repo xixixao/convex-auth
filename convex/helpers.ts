@@ -1,6 +1,7 @@
 import { HttpRouter, PublicHttpAction } from "convex/server";
 import { ActionCtx, httpAction } from "./_generated/server";
 import { ConvexError } from "convex/values";
+import * as cookie from "cookie";
 
 export function convertErrorsToResponse(
   errorStatusCode: number,
@@ -25,12 +26,8 @@ export function convertErrorsToResponse(
   };
 }
 
-export function getCookies(req: Request) {
-  return new Map(
-    (req.headers.get("Cookie") ?? "")
-      .split("; ")
-      .map((cookie) => cookie.split("=") as [string, string])
-  );
+export function getCookies(req: Request): Record<string, string | undefined> {
+  return cookie.parse(req.headers.get("Cookie") ?? "");
 }
 
 export function corsRoutes(http: HttpRouter, origin: string) {

@@ -14,6 +14,7 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as auth_VerificationCodeEmail from "../auth/VerificationCodeEmail.js";
 import type * as auth from "../auth.js";
 import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
@@ -29,6 +30,7 @@ import type * as node from "../node.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  "auth/VerificationCodeEmail": typeof auth_VerificationCodeEmail;
   auth: typeof auth;
   helpers: typeof helpers;
   http: typeof http;

@@ -1,52 +1,75 @@
 import { ConvexError, v } from "convex/values";
-import { MutationCtx, QueryCtx, internalMutation } from "./_generated/server";
+import { alphabet, generateRandomString } from "oslo/crypto";
 import { Id } from "./_generated/dataModel";
-import { Scrypt } from "lucia";
+import {
+  MutationCtx,
+  QueryCtx,
+  action,
+  internalMutation,
+} from "./_generated/server";
+import { internal } from "./_generated/api";
+import { sendVerificationEmail } from "./auth/VerificationCodeEmail";
 
 export const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 days
+export const VERIFICATION_CODE_DURATION_MS = 1000 * 60 * 10; // 10 minutes
 
-export const signUp = internalMutation({
+export const emailSignUpOrSignIn = action({
   args: {
     email: v.string(),
-    password: v.string(),
   },
-  handler: async (ctx, { email, password }) => {
-    // TODO: Validate email and password length / character set
+  handler: async (ctx, { email }) => {
+    const code = await ctx.runMutation(internal.auth.createVerificationCode, {
+      email,
+    });
+    await sendVerificationEmail({ email, code });
+  },
+});
+
+export const createVerificationCode = internalMutation({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, { email }) => {
     const existingUser = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", email))
       .unique();
-    if (existingUser !== null) {
-      throw new ConvexError("User already exists");
+    const userId =
+      existingUser?._id ?? (await ctx.db.insert("users", { email }));
+    const existingCode = await ctx.db
+      .query("verificationCodes")
+      .withIndex("userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (existingCode !== null) {
+      await ctx.db.delete(existingCode._id);
     }
-    const userId = await ctx.db.insert("users", {
-      email,
-      passwordHash: await hashPassword(password),
+    const code = generateRandomString(8, alphabet("0-9"));
+    await ctx.db.insert("verificationCodes", {
+      userId,
+      code,
+      expirationTime: Date.now() + VERIFICATION_CODE_DURATION_MS,
     });
-    return await createSession(ctx, userId);
+    return code;
   },
 });
 
-export const signIn = internalMutation({
+export const verifyCode = internalMutation({
   args: {
-    email: v.string(),
-    password: v.string(),
+    code: v.string(),
   },
-  handler: async (ctx, { email, password }) => {
-    const user = await ctx.db
-      .query("users")
-      .withIndex("email", (q) => q.eq("email", email))
+  handler: async (ctx, { code }) => {
+    const verificationCode = await ctx.db
+      .query("verificationCodes")
+      .withIndex("code", (q) => q.eq("code", code))
       .unique();
-    if (user === null) {
-      throw new ConvexError("Email not found");
+    if (verificationCode === null) {
+      throw new ConvexError("Invalid verification code");
     }
-    if (user.passwordHash === undefined) {
-      throw new ConvexError("Wrong authentication method");
+    await ctx.db.delete(verificationCode._id);
+    if (verificationCode.expirationTime < Date.now()) {
+      throw new ConvexError("Expired verification code");
     }
-    if (!(await verifyPassword(password, user.passwordHash))) {
-      throw new ConvexError("Incorrect password");
-    }
-    return await createSession(ctx, user._id);
+    return await createSession(ctx, verificationCode.userId);
   },
 });
 
@@ -83,6 +106,7 @@ export const verifyAndRefreshSession = internalMutation({
   handler: async (ctx, { sessionId }) => {
     const session = await getSession(ctx, sessionId);
     if (session === null || session.expirationTime < Date.now()) {
+      console.error(sessionId, session);
       throw new ConvexError("Invalid session cookie");
     }
     await ctx.db.patch(session._id, {
@@ -108,12 +132,4 @@ async function getSession(ctx: QueryCtx, sessionId: string | undefined) {
     return null;
   }
   return await ctx.db.get(validId);
-}
-
-async function hashPassword(password: string) {
-  return await new Scrypt().hash(password);
-}
-
-async function verifyPassword(password: string, hash: string) {
-  return await new Scrypt().verify(hash, password);
 }

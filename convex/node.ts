@@ -1,9 +1,8 @@
 "use node";
 
+import { v } from "convex/values";
 import { SignJWT, exportJWK, importPKCS8, importSPKI } from "jose";
 import { internalAction } from "./_generated/server";
-import { internal } from "./_generated/api";
-import { v } from "convex/values";
 
 export const publicJWK = internalAction(async () => {
   // This has to be in node because we get "Unrecognized algorithm"
@@ -15,16 +14,12 @@ export const generateToken = internalAction({
   args: {
     sessionId: v.optional(v.string()),
   },
-  handler: async (ctx, { sessionId }): Promise<string> => {
-    const userId = await ctx.runMutation(
-      internal.auth.verifyAndRefreshSession,
-      { sessionId }
-    );
+  handler: async (ctx, { sessionId }) => {
     const privateKey = await importPKCS8(
       process.env.AUTH_PRIVATE_KEY!,
       "RS256"
     );
-    return await new SignJWT({ sub: userId })
+    return await new SignJWT({ sub: sessionId })
       .setProtectedHeader({ alg: "RS256" })
       .setIssuedAt()
       .setIssuer(process.env.CONVEX_SITE_URL!)

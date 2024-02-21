@@ -58,7 +58,11 @@ httpWithCors.route({
   credentials: true,
   handler: httpAction(
     convertErrorsToResponse(200, async (ctx, req) => {
-      const sessionId = getCookies(req)[SESSION_COOKIE_NAME];
+      const existingSessionId = getCookies(req)[SESSION_COOKIE_NAME];
+      const sessionId = await ctx.runMutation(
+        internal.auth.getOrRefreshSession,
+        { sessionId: existingSessionId }
+      );
       const token = await ctx.runAction(internal.node.generateToken, {
         sessionId,
       });
@@ -66,66 +70,8 @@ httpWithCors.route({
         status: 200,
         headers: {
           "Content-Type": "application/text",
-          ...sessionCookieHeader(sessionId!, "refresh"),
+          ...sessionCookieHeader(sessionId, "refresh"),
         },
-      });
-    })
-  ),
-});
-
-httpWithCors.route({
-  path: "/auth/signUp",
-  method: "POST",
-  credentials: true,
-  handler: httpAction(
-    convertErrorsToResponse(401, async (ctx, req) => {
-      const data = await req.formData();
-      const email = data.get("email") as string;
-      const password = data.get("password") as string;
-      const sessionId = await ctx.runMutation(internal.auth.signUp, {
-        email,
-        password,
-      });
-      return new Response(null, {
-        status: 200,
-        headers: sessionCookieHeader(sessionId, "refresh"),
-      });
-    })
-  ),
-});
-
-httpWithCors.route({
-  path: "/auth/signIn",
-  method: "POST",
-  credentials: true,
-  handler: httpAction(
-    convertErrorsToResponse(401, async (ctx, req) => {
-      const data = await req.formData();
-      const email = data.get("email") as string;
-      const password = data.get("password") as string;
-      const sessionId = await ctx.runMutation(internal.auth.signIn, {
-        email,
-        password,
-      });
-      return new Response(null, {
-        status: 200,
-        headers: sessionCookieHeader(sessionId, "refresh"),
-      });
-    })
-  ),
-});
-
-httpWithCors.route({
-  path: "/auth/signOut",
-  method: "POST",
-  credentials: true,
-  handler: httpAction(
-    convertErrorsToResponse(401, async (ctx, req) => {
-      const sessionId = getCookies(req)[SESSION_COOKIE_NAME];
-      await ctx.runMutation(internal.auth.signOut, { sessionId });
-      return new Response(null, {
-        status: 200,
-        headers: sessionCookieHeader(sessionId!, "expired"),
       });
     })
   ),

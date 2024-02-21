@@ -16,18 +16,16 @@ export const listNumbers = query({
   // Query implementation.
   handler: async (ctx, args) => {
     const viewerId = await getViewerId(ctx);
-    const viewer = (await ctx.db.get(viewerId))!;
 
     //// Read the database as many times as you need here.
     //// See https://docs.convex.dev/database/reading-data.
     const numbers = await ctx.db
       .query("numbers")
-      .withIndex("userId", (q) => q.eq("userId", viewerId))
+      .withIndex("sessionId", (q) => q.eq("sessionId", viewerId))
       // Ordered by _creationTime, return most recent
       .order("desc")
       .take(args.count);
     return {
-      viewer: viewer.email,
       numbers: numbers.toReversed().map((number) => number.value),
     };
   },
@@ -49,7 +47,7 @@ export const addNumber = mutation({
     const viewerId = await getViewerId(ctx);
     const id = await ctx.db.insert("numbers", {
       value: args.value,
-      userId: viewerId,
+      sessionId: viewerId,
     });
 
     console.log("Added new document with id:", id);
@@ -91,5 +89,5 @@ async function getViewerId(ctx: QueryCtx) {
   if (auth === null) {
     throw new Error("Not authenticated");
   }
-  return auth.subject as Id<"users">;
+  return auth.subject as Id<"sessions">;
 }

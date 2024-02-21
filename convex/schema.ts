@@ -4,8 +4,14 @@ import { v } from "convex/values";
 export default defineSchema({
   users: defineTable({
     email: v.string(),
-    passwordHash: v.optional(v.string()),
   }).index("email", ["email"]),
+  verificationCodes: defineTable({
+    userId: v.id("users"),
+    code: v.string(),
+    expirationTime: v.number(),
+  })
+    .index("userId", ["userId"])
+    .index("code", ["code"]),
   sessions: defineTable({
     userId: v.id("users"),
     expirationTime: v.number(),

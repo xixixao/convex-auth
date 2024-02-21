@@ -80,38 +80,15 @@ httpWithCors.route({
 });
 
 httpWithCors.route({
-  path: "/auth/signUp",
+  path: "/auth/verifyCode",
   method: "POST",
   credentials: true,
   handler: httpAction(
     convertErrorsToResponse(401, async (ctx, req) => {
       const data = await req.formData();
-      const email = data.get("email") as string;
-      const password = data.get("password") as string;
-      const sessionId = await ctx.runMutation(internal.auth.signUp, {
-        email,
-        password,
-      });
-      return new Response(null, {
-        status: 200,
-        headers: sessionCookieHeader(sessionId, "refresh"),
-      });
-    })
-  ),
-});
-
-httpWithCors.route({
-  path: "/auth/signIn",
-  method: "POST",
-  credentials: true,
-  handler: httpAction(
-    convertErrorsToResponse(401, async (ctx, req) => {
-      const data = await req.formData();
-      const email = data.get("email") as string;
-      const password = data.get("password") as string;
-      const sessionId = await ctx.runMutation(internal.auth.signIn, {
-        email,
-        password,
+      const code = data.get("code") as string;
+      const sessionId = await ctx.runMutation(internal.auth.verifyCode, {
+        code,
       });
       return new Response(null, {
         status: 200,
